@@ -1,0 +1,6 @@
+# local tooling and private notes: never commit
+.claude/
+notes/
+*.log
+Thumbs.db
+desktop.ini
