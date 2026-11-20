@@ -91,10 +91,10 @@
       <g class="p-sparkle" fill="#fff"><path d="M82 82 l2 5 l5 2 l-5 2 l-2 5 l-2 -5 l-5 -2 l5 -2z"/><path d="M126 82 l2 5 l5 2 l-5 2 l-2 5 l-2 -5 l-5 -2 l5 -2z"/></g>
       <path class="p-beak" d="M89 104 Q100 98 111 104 Q100 118 89 104 Z" fill="${beak}" ${S3}/>
     </g>`;
-    s += `<g class="p-bow" transform="rotate(14 130 36)">
+    s += `<g transform="rotate(14 130 36)"><g class="p-bow">
       <path d="M130 38 C114 20 100 30 104 44 C106 54 120 50 130 38 Z" fill="#ffb3d1" ${S3}/>
       <path d="M130 38 C146 20 160 30 156 44 C154 54 140 50 130 38 Z" fill="#ffb3d1" ${S3}/>
-      <circle cx="130" cy="38" r="6.500" fill="#ff8fbb" ${S3}/></g>`;
+      <circle cx="130" cy="38" r="6.500" fill="#ff8fbb" ${S3}/></g></g>`;
     return svg('0 0 200 200', 'penguin', s);
   }
 

@@ -9,7 +9,7 @@
       lines: ["Careful... it's wriggling.", 'Something in there has whiskers.'],
       hello: 'Hi, my little penguin! I have a story for you.',
       sound: 'best with sound on',
-      skip: 'Skip to my card',
+      skip: 'Skip to your card',
     },
     story: [
       'Once upon a time, in rainy Ireland, there lived an orange cat.',
@@ -50,7 +50,7 @@
       { t: 'I love you. Happy birthday.', c: 'l-big' },
     ],
     sign: ['Lee', '(your orange cat)'],
-    end: { again: 'Play again', kiss: 'Send the cat a kiss', kissText: 'The penguin got her birthday card 🐧💌🐈' },
+    end: { again: 'Play again', kiss: 'Send the cat a kiss', kissText: 'The penguin got her birthday card 🐧💌 Sending the cat a kiss 😘🐈' },
     rotate: 'Turn your phone upright, my little penguin',
     sound: ['Turn sound off', 'Turn sound on'],
   };
@@ -74,11 +74,22 @@
   }
   function clearTimers() { timers.forEach(clearTimeout); timers = []; }
   function setTap(t) { tapTarget = t; }
+  // older iPhones (iOS 12) have no Pointer Events: fall back to touchstart there
+  const DOWN = window.PointerEvent ? 'pointerdown' : ('ontouchstart' in window ? 'touchstart' : 'mousedown');
+  // A tap acts the instant the finger lands. The click the browser sends when the finger lifts is ignored
+  // (by then it may land on whatever scene has just appeared); a click with no touch just before it comes
+  // from a keyboard or a screen reader and is handled.
+  let lastPtr = 0;
+  ['pointerdown', 'pointerup', 'pointercancel', 'touchstart', 'touchend', 'touchcancel', 'mousedown', 'mouseup'].forEach(function (ev) {
+    document.addEventListener(ev, function () { lastPtr = Date.now(); }, { capture: true, passive: true });
+  });
   function onTap(node, fn) {
-    let t = 0;
-    node.addEventListener('pointerdown', function (e) { if (e.button > 0) return; t = Date.now(); fn(e); });
-    node.addEventListener('click', function (e) { if (Date.now() - t < 800) return; fn(e); });   // keyboard users
+    node.addEventListener(DOWN, function (e) { if (e.button > 0) return; fn(e); });
+    node.addEventListener('click', function (e) { if (Date.now() - lastPtr < 700) return; fn(e); });
   }
+  // Controls that change scene into or out of the scrolling letter act on a finished tap (a click), never on
+  // touch-down: a scroll that happens to start on them does nothing, and no stray click reaches the next scene.
+  function onClick(node, fn) { node.addEventListener('click', fn); }
   function bounce(node) { if (!node) return; node.classList.remove('react'); void node.offsetWidth; node.classList.add('react'); }
   function spot(node) { const r = node.getBoundingClientRect(), s = stage.getBoundingClientRect(); return { x: r.left - s.left + r.width / 2, y: r.top - s.top + r.height / 2, w: r.width, h: r.height }; }
   function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { /* private mode */ } return null; }
@@ -174,7 +185,7 @@
     $('.gift-hint', s).textContent = COPY.gift.hint;
     $('.skip-link', s).textContent = COPY.gift.skip;
     onTap($('.gift-btn', s), tapGift);
-    onTap($('.skip-link', s), function () { Sfx.unlock(); Sfx.music('birthday'); go('letter'); });
+    onClick($('.skip-link', s), function () { Sfx.unlock(); Sfx.music('birthday'); go('letter'); });
     onTap(s, function (e) { if (giftOpen === 'ready' && current === 'gift' && !e.target.closest('.skip-link')) go('story'); });
   }
   function tapGift() {
@@ -295,8 +306,9 @@
     isl.root = s;
     isl.items = $$('.gift-item', s);
     isl.candles = $$('.candle-btn', s);
-    $('.isl-banner span', s).textContent = COPY.party.a;
-    $('.isl-banner strong', s).innerHTML = COPY.party.b.split('').map(function (ch, i) { return '<i style="animation-delay:' + (i * 0.09) + 's">' + ch + '</i>'; }).join('');
+    const hb = $('.isl-banner span', s);
+    hb.textContent = COPY.party.a; hb.setAttribute('data-t', COPY.party.a); hb.classList.add('ol');
+    $('.isl-banner strong', s).innerHTML = COPY.party.b.split('').map(function (ch, i) { return '<i class="ol" data-t="' + ch + '" style="animation-delay:' + (i * 0.09) + 's">' + ch + '</i>'; }).join('');
     $('.isl-banner em', s).textContent = COPY.party.sub;
     isl.open.textContent = COPY.party.btn;
     onTap(isl.penguin, tapPenguin);
@@ -304,7 +316,15 @@
     onTap(isl.sansa, function () { bounce($('.ch-in', isl.sansa)); Sfx.play('mew'); if (!isl.sansa.classList.contains('is-sleep')) hearts(isl.sansa, 4); });
     isl.items.forEach(function (b) { onTap(b, function () { giveGift(b); }); });
     isl.candles.forEach(function (b) { onTap(b, function () { blow(b); }); });
-    onTap(isl.open, function () { if (current === 'party') { Sfx.play('pop'); go('letter'); } });
+    onClick(isl.open, function () { if (current === 'party') { Sfx.play('pop'); go('letter'); } });
+    // during the party every tap on the sky or sand throws a little more confetti
+    onTap(s, function (e) {
+      if (current !== 'party' || (e.target.closest && e.target.closest('.isl-open, .ch, .candle-btn'))) return;
+      const pt = e.touches && e.touches[0] ? e.touches[0] : e, r = stage.getBoundingClientRect();
+      if (typeof pt.clientX !== 'number') return;
+      FX.burst(pt.clientX - r.left, pt.clientY - r.top, { n: 12, shape: 'rect', speed: 240, up: true, g: 320, size: 10, life: 1.2 });
+      Sfx.play('tap');
+    });
   }
   function caption(text) {
     isl.caption.textContent = text;
@@ -329,6 +349,7 @@
     const n = ['arrival', 'gifts', 'cake', 'party'].indexOf(phase);
     isl.root.classList.remove('party', 'hug', 'arrive');
     isl.root.dataset.phase = phase;
+    isl.root.classList.remove('wish');
     isl.caption.classList.remove('show'); isl.bubble.classList.remove('show'); clearTimeout(isl.bubbleT);
     isl.gifts.classList.remove('show'); isl.cake.classList.remove('show'); isl.banner.classList.remove('show'); isl.open.classList.remove('show');
     hint('');
@@ -347,7 +368,8 @@
   function tapPenguin() {
     const inner = isl.penguin.firstElementChild;
     if (current === 'arrival') {
-      if (!penReady || Date.now() - penLock < 750 || penTaps >= 3) return;
+      if (!penReady) { bounce(inner); hearts(isl.penguin, 4); Sfx.play('squeak'); return; }   // an eager tap still gets a wiggle
+      if (Date.now() - penLock < 750 || penTaps >= 3) return;
       penLock = Date.now(); penTaps++;
       bounce(inner); hearts(isl.penguin, 7 + penTaps * 2); Sfx.play('squeak'); Sfx.buzz(10);
       mood(isl.penguin, ['is-wave', 'is-blush', 'is-blush is-happy is-flap'][penTaps - 1]);
@@ -444,7 +466,7 @@
       cakeReady = false;
       mood(isl.cat, 'is-happy');
       caption(COPY.cake.a);
-      later(function () { isl.cake.classList.add('show'); Sfx.play('open'); mood(isl.penguin, 'is-sparkle', 2400); }, 1100);
+      later(function () { isl.cake.classList.add('show'); isl.root.classList.add('wish'); Sfx.play('open'); mood(isl.penguin, 'is-sparkle', 2400); }, 1100);
       later(function () {
         caption(COPY.cake.b); hint(COPY.cake.hint); cakeReady = true;
         setTap(function () { const c = isl.candles.filter(function (x) { return !x.classList.contains('out'); })[0]; return c || null; });
@@ -503,10 +525,16 @@
     kiss.textContent = COPY.end.kiss;
     kiss.href = 'https://wa.me/?text=' + encodeURIComponent(COPY.end.kissText);
     kiss.addEventListener('click', function () { hearts(kiss, 12); Sfx.play('kiss'); });
-    onTap($('.again', s), function () { if (current === 'letter' && letterDone) { Sfx.play('pop'); Sfx.music(null); go('gift'); } });
-    onTap($('.lp-cat', s), function () { hearts($('.lp-cat', s), 6); Sfx.play('purr'); });
-    onTap($('.lp-pen', s), function () { hearts($('.lp-pen', s), 6); Sfx.play('squeak'); });
-    onTap($('.letter-card', s), function () { if (current === 'letter' && !letterDone) revealAll(); });
+    onClick($('.again', s), function () { if (current === 'letter' && letterDone) { Sfx.play('pop'); Sfx.music(null); go('gift'); } });
+    onClick($('.lp-cat', s), function () { hearts($('.lp-cat', s), 6); Sfx.play('purr'); });
+    onClick($('.lp-pen', s), function () { hearts($('.lp-pen', s), 6); Sfx.play('squeak'); });
+    onClick($('.letter-card', s), function () { if (current === 'letter' && !letterDone && Date.now() - letterAt > 600) revealAll(); });
+    // older iPhones: keep the letter's own scroller busy at its edges so a drag never pulls the whole page
+    s.addEventListener('touchstart', function () {
+      const max = s.scrollHeight - s.clientHeight;
+      if (max <= 0) return;
+      if (s.scrollTop <= 0) s.scrollTop = 1; else if (s.scrollTop >= max) s.scrollTop = max - 1;
+    }, { passive: true });
     ['pointerdown', 'touchstart', 'wheel'].forEach(function (ev) { s.addEventListener(ev, function () { letterTouched = true; }, { passive: true }); });
     s.addEventListener('scroll', letterMore, { passive: true });
     const more = document.createElement('div');
@@ -516,11 +544,12 @@
   }
   // The letter is longer than a phone screen. While it writes itself the page follows the newest line;
   // the moment she touches or scrolls, she is in charge and a small arrow shows there is more below.
-  let letterTouched = false;
+  let letterTouched = false, letterAt = 0;
   function letterMore() {
     const s = $('#s-letter'), more = $('#more');
     if (!more) return;
     more.classList.toggle('show', current === 'letter' && s.scrollHeight - s.scrollTop - s.clientHeight > 48);
+    $('#mute').style.opacity = (current === 'letter' && s.scrollTop > 30) ? '.35' : '';   // do not sit on her words
   }
   function letterFollow(node, pad) {
     const s = $('#s-letter');
@@ -542,7 +571,7 @@
   scenes.letter = {
     enter: function () {
       const s = $('#s-letter'), lines = $$('.l-line', s);
-      letterDone = false; letterTouched = false;
+      letterDone = false; letterTouched = false; letterAt = Date.now();
       s.scrollTop = 0;
       $('.letter-wrap', s).classList.remove('done');
       lines.forEach(function (p) { p.classList.remove('in'); });
@@ -553,11 +582,12 @@
       lines.forEach(function (p, i) {
         later(function () {
           p.classList.add('in'); letterFollow(p); letterMore();
+          if (i === lines.length - 2 && !calm) FX.fountain(stage.clientWidth / 2, stage.clientHeight * 0.99, 4);   // "I love you"
           if (i === lines.length - 1) later(revealAll, 900);
         }, 800 + i * (calm ? 300 : 1150));
       });
     },
-    exit: function () { letterDone = false; const more = $('#more'); if (more) more.classList.remove('show'); },
+    exit: function () { letterDone = false; const more = $('#more'); if (more) more.classList.remove('show'); $('#mute').style.opacity = ''; FX.clear(); },
   };
 
   /* ================= TEST CONTRACT ================= */
@@ -600,11 +630,11 @@
     function paintMute() { mute.innerHTML = Art.speaker(!Sfx.isMuted()); mute.setAttribute('aria-label', COPY.sound[Sfx.isMuted() ? 1 : 0]); }
     paintMute();
     onTap(mute, function (e) { e.stopPropagation(); Sfx.unlock(); Sfx.setMuted(!Sfx.isMuted()); paintMute(); });
-    ['pointerdown', 'pointerup', 'click', 'keydown'].forEach(function (ev) { document.addEventListener(ev, Sfx.unlock, { passive: true }); });
+    ['pointerdown', 'pointerup', 'touchend', 'mouseup', 'click', 'keydown'].forEach(function (ev) { document.addEventListener(ev, Sfx.unlock, { passive: true }); });
     const finger = document.createElement('div');
     finger.id = 'finger'; finger.innerHTML = Art.finger(); stage.appendChild(finger);
     let idleSince = Date.now(), lastNode = null;
-    document.addEventListener('pointerdown', function () { idleSince = Date.now(); finger.classList.remove('show'); }, { passive: true, capture: true });
+    document.addEventListener(DOWN, function () { idleSince = Date.now(); finger.classList.remove('show'); }, { passive: true, capture: true });
     // if she waits a moment, a little finger shows exactly what to tap
     setInterval(function () {
       const node = Game.running() || current === 'letter' ? null : tapNode();

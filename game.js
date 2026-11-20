@@ -47,7 +47,8 @@
     el.banner = root.appendChild(h('div', 'g-banner'));
     el.hint = root.appendChild(h('div', 'g-hint', Art.finger() + '<span></span>'));
     el.quip = root.appendChild(h('div', 'g-quip'));
-    root.addEventListener('pointerdown', function (e) { if (st && st.on) { e.preventDefault(); hop(); } });
+    const down = window.PointerEvent ? 'pointerdown' : ('ontouchstart' in window ? 'touchstart' : 'mousedown');
+    root.addEventListener(down, function (e) { if (st && st.on) { e.preventDefault(); hop(); } }, { passive: false });
     document.addEventListener('keydown', function (e) {
       if (st && st.on && (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'Enter')) { e.preventDefault(); hop(); }
     });
@@ -96,10 +97,17 @@
     }
   }
 
+  // one-off things (the sun, the rainbow) are pinned to the sky, so they never show twice as the scenery wraps
+  function once(html, cls, leftPct, top, widthU, heightU) {
+    const d = h('div', cls || '', html || '');
+    d.style.cssText = 'position:absolute;left:' + leftPct + '%;top:' + top + ';width:calc(var(--u) * ' + widthU + ')' + (heightU ? ';height:calc(var(--u) * ' + heightU + ')' : '');
+    el.sky.appendChild(d);
+  }
+
   function scenery(id) {
-    el.far.innerHTML = ''; el.mid.innerHTML = '';
+    el.sky.innerHTML = ''; el.far.innerHTML = ''; el.mid.innerHTML = '';
     if (id === 'ireland') {
-      deco(el.far, Art.rainbow(), '', 44, { top: '25%' }, 64);
+      once(Art.rainbow(), '', 18, '25%', 64);
       deco(el.far, Art.cloud(), '', 6, { top: '19%' }, 30);
       deco(el.far, Art.cloud(), '', 62, { top: '33%' }, 22);
       deco(el.far, '<i style="left:12%"></i><i style="left:34%;animation-delay:-.3s"></i><i style="left:56%;animation-delay:-.55s"></i><i style="left:78%;animation-delay:-.15s"></i>', 'drizzle', 8, { top: 'calc(19% + var(--u) * 14)', height: 'calc(var(--u) * 12)' }, 26);
@@ -107,14 +115,14 @@
         deco(el.mid, '', 'hill', p[0], { height: 'calc(var(--u) * ' + p[2] + ')', background: p[3] }, p[1]);
       });
     } else if (id === 'sea') {
-      deco(el.far, '', 'sun', 62, { top: '20%', height: 'calc(var(--u) * 15)' }, 15);
+      once('', 'sun', 62, '20%', 15, 15);
       deco(el.far, Art.cloud(), '', 8, { top: '24%' }, 28);
       deco(el.far, Art.cloud(), '', 48, { top: '36%' }, 20);
       [[10, 44, 9, '#d9c7ff'], [66, 30, 6, '#c9f2e0']].forEach(function (p) {
         deco(el.mid, '', 'hill', p[0], { height: 'calc(var(--u) * ' + p[2] + ')', background: p[3], bottom: '19%' }, p[1]);
       });
     } else {
-      deco(el.far, '', 'sun', 16, { top: '49%', height: 'calc(var(--u) * 24)' }, 24);
+      once('', 'sun', 16, '49%', 24, 24);
       deco(el.far, Art.cloud(), '', 50, { top: '22%' }, 26);
       deco(el.far, Art.cloud(), '', 4, { top: '32%' }, 18);
       deco(el.mid, Art.palm(), '', 8, { bottom: '20%' }, 34);
@@ -156,7 +164,8 @@
       counts: (opts && opts.counts) || { coffee: 0, bear: 0, rose: 0, heart: 0 },
     };
     banner(text.name, text.line, 3100);
-    el.hint.querySelector('span').textContent = C.hop || 'tap to hop!';
+    const hs = el.hint.querySelector('span');
+    hs.textContent = C.hop || 'tap to hop!'; hs.setAttribute('data-t', hs.textContent); hs.classList.add('ol');
     el.hint.classList.toggle('show', def.idx === 0);
     el.quip.classList.remove('show');
     syncCounts();
@@ -297,10 +306,9 @@
     const mode = st.stun > 0 ? 'is-happy' : st.ground ? (st.def.boat ? '' : 'is-run') : 'is-air';
     if (mode !== st.mode) { el.player.classList.remove('is-run', 'is-air', 'is-happy'); if (mode) el.player.classList.add(mode); st.mode = mode; }
     el.player.classList.toggle('blink', st.inv > 0);
-    const sw = Math.max(8, 19 - st.py * 0.28) * U;
-    el.shadow.style.display = st.def.boat ? 'none' : 'block';
-    el.shadow.style.width = sw + 'px';
-    el.shadow.style.transform = 'translate3d(' + (x + PW * U / 2 - sw / 2) + 'px,' + (gy - 1.2 * U) + 'px,0)';
+    const sk = Math.max(8, 19 - st.py * 0.28) / 19;
+    if (st.shadowOn !== !st.def.boat) { st.shadowOn = !st.def.boat; el.shadow.style.display = st.shadowOn ? 'block' : 'none'; }
+    el.shadow.style.transform = 'translate3d(' + (x + PW * U / 2 - 9.5 * U) + 'px,' + (gy - 1.2 * U) + 'px,0) scaleX(' + sk.toFixed(3) + ')';
     if (el.quip.classList.contains('show')) el.quip.style.transform = 'translate3d(' + (x + PW * U * 0.55) + 'px,' + (y - 7 * U) + 'px,0)';
     const right = W / U + 12;
     for (let i = 0; i < st.ents.length; i++) {
@@ -318,7 +326,8 @@
     if (st.def.boat) el.front.style.transform = 'translate3d(' + (-(cam * 1.25) % 40).toFixed(1) + 'px,' + (Math.sin(st.t * 2.4) * 3).toFixed(1) + 'px,0)';
     if (st.def.idx === 2) el.goal.style.transform = 'translate3d(' + ((LEN + 60 - st.camX) * U).toFixed(1) + 'px,' + (gy - 27 * U * 0.97) + 'px,0)';
     const p = (st.def.idx + Math.min(st.camX / LEN, 1)) / 3;
-    el.routeCat.style.left = (13 + p * 74) + '%';
+    const left = Math.round((13 + p * 74) * 2) / 2;
+    if (left !== st.routeLeft) { st.routeLeft = left; el.routeCat.style.left = left + '%'; }
   }
 
   function frame(now) {

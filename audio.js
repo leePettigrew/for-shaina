@@ -10,7 +10,12 @@
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
     try {
+      // let the music box be heard even when an iPhone's ringer switch is on silent, as videos are;
+      // nothing plays before her first tap and the mute button still works
+      try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* older browsers */ }
       ctx = new AC();
+      // after a phone call or an app switch, pick the sound back up when the browser allows it
+      ctx.onstatechange = function () { if (primed && !document.hidden) resume(); };
       master = ctx.createGain(); master.gain.value = muted ? 0 : 1; master.connect(ctx.destination);
       sfxBus = ctx.createGain(); sfxBus.gain.value = 0.9; sfxBus.connect(master);
       musicBus = ctx.createGain(); musicBus.gain.value = 0.55; musicBus.connect(master);
@@ -33,14 +38,14 @@
     if (!c) return;
     if (c.state === 'running' && primed) return;
     try {
-      if (c.state !== 'running') c.resume();
+      if (c.state !== 'running') { const p = c.resume(); if (p && p.catch) p.catch(function () { /* the next tap tries again */ }); }
       const b = c.createBufferSource(); b.buffer = c.createBuffer(1, 1, 22050); b.connect(c.destination); b.start(0);
       primed = true;
     } catch (e) { /* carry on silently */ }
   }
 
   function ready() { return !!ctx && ctx.state === 'running'; }
-  function live() { return !!ctx && ctx.state !== 'closed' && !document.hidden; }
+  function live() { return !!ctx && (ctx.state === 'running' || ctx.state === 'suspended') && !document.hidden; }
 
   function tone(f0, f1, dur, vol, type, when, bus) {
     if (!live()) return;
@@ -161,7 +166,10 @@
   }
   function musicLevel(v) { if (musicBus && ctx) musicBus.gain.setTargetAtTime(v, ctx.currentTime, 0.4); }
   function pause() { if (ctx && ctx.state === 'running') { try { ctx.suspend(); } catch (e) { /* ignore */ } } }
-  function resume() { if (ctx && ctx.state === 'suspended') { try { ctx.resume(); } catch (e) { /* ignore */ } } }
+  function resume() {
+    if (!ctx || ctx.state === 'running' || ctx.state === 'closed') return;
+    try { const p = ctx.resume(); if (p && p.catch) p.catch(function () { /* needs a tap first */ }); } catch (e) { /* ignore */ }
+  }
   function buzz(ms) { try { if (!muted && navigator.vibrate) navigator.vibrate(ms || 8); } catch (e) { /* ignore */ } }
 
   window.Sfx = { unlock, play, music, setMuted, isMuted: function () { return muted; }, musicLevel, pause, resume, buzz, kind: function () { return track ? track.kind : null; } };
