@@ -8,6 +8,7 @@
       tag: 'For Shaina', hint: 'tap the present',
       lines: ["Careful... it's wriggling.", 'Something in there has whiskers.'],
       hello: 'Hi, my little penguin! I have a story for you.',
+      sound: 'best with sound on',
       skip: 'Skip to my card',
     },
     story: [
@@ -166,7 +167,8 @@
     const s = $('#s-gift');
     s.innerHTML = '<div class="gift-stack"><div class="bubble gift-bubble"></div><div class="gift-cat">' + Art.cat({ scarf: true }) + '</div>' +
       '<button class="gift-btn" aria-label="Open your present">' + Art.giftBox() + '<span class="gift-tag"></span></button></div>' +
-      '<div class="gift-line" aria-live="polite"></div><div class="hint gift-hint"></div><button class="skip-link" hidden></button>';
+      '<div class="gift-line" aria-live="polite"></div><div class="hint gift-hint"></div><div class="gift-sound">' + Art.speaker(true) + '<span></span></div><button class="skip-link" hidden></button>';
+    $('.gift-sound span', s).textContent = COPY.gift.sound;
     $('.gift-tag', s).textContent = COPY.gift.tag;
     $('.gift-bubble', s).textContent = COPY.gift.hello;
     $('.gift-hint', s).textContent = COPY.gift.hint;
@@ -194,6 +196,7 @@
     $('.gift-cat', s).classList.add('is-happy');
     $('.gift-line', s).textContent = '';
     $('.gift-hint', s).style.visibility = 'hidden';
+    $('.gift-sound', s).style.visibility = 'hidden';
     $('.skip-link', s).hidden = true;
     Sfx.play('open'); Sfx.buzz(30); Sfx.music('loop');
     FX.burst(p.x, p.y - p.h * 0.2, { n: 34, speed: 330, up: true, g: 320, size: 11, life: 1.5, shape: 'rect' });
@@ -211,6 +214,7 @@
       $('.gift-btn', s).classList.remove('shake');
       $('.gift-line', s).textContent = '';
       $('.gift-hint', s).style.visibility = 'visible';
+      $('.gift-sound', s).style.visibility = 'visible';
       $('.skip-link', s).hidden = store('forShaina.seen') !== '1';
       setTap($('.gift-btn', s));
     },
@@ -229,7 +233,7 @@
       '<path d="M66 176 Q150 -10 254 84" fill="none" stroke="#b9a3cf" stroke-width="5" stroke-dasharray="1 13" stroke-linecap="round"/>' +
       nest(Art.catFace(), 18, 150, 80) + nest(Art.penguinFace(), 222, 40, 84) +
       '<text x="104" y="212" class="map-t">' + COPY.map.a + '</text><text x="312" y="146" text-anchor="end" class="map-t">' + COPY.map.b + '</text>' +
-      '<text x="160" y="118" text-anchor="middle" class="map-k">' + COPY.map.km + '</text>' +
+      '<text x="204" y="180" text-anchor="middle" class="map-k">' + COPY.map.km + '</text>' +
       '<g><path d="M0 7 C-17 -5 -9 -17 0 -8 C9 -17 17 -5 0 7 Z" fill="#ff7fae" stroke="#5b4a66" stroke-width="2.500"/><animateMotion dur="2.800s" repeatCount="indefinite" path="M66 176 Q150 -10 254 84"/></g>' +
       '</svg></div>';
     return '<div class="sa sa-sky4"></div><div class="sa sa-cat is-happy">' + Art.cat({ scarf: true, bag: true }) + '</div>' +
@@ -324,11 +328,12 @@
   function islandBase(phase) {
     const n = ['arrival', 'gifts', 'cake', 'party'].indexOf(phase);
     isl.root.classList.remove('party', 'hug', 'arrive');
+    isl.root.dataset.phase = phase;
     isl.caption.classList.remove('show'); isl.bubble.classList.remove('show'); clearTimeout(isl.bubbleT);
     isl.gifts.classList.remove('show'); isl.cake.classList.remove('show'); isl.banner.classList.remove('show'); isl.open.classList.remove('show');
     hint('');
     mood(isl.cat, ''); mood(isl.penguin, '');
-    $$('.balloon-fly', isl.root).forEach(function (b) { b.remove(); });
+    $$('.balloon-fly, .pen-hold', isl.root).forEach(function (b) { b.remove(); });
     isl.items.forEach(function (b) { b.classList.remove('given', 'next'); b.style.removeProperty('--tx'); b.style.removeProperty('--ty'); });
     $$('.pile > div', isl.root).forEach(function (d) { d.classList.toggle('in', n >= 2); });
     isl.candles.forEach(function (b) { b.classList.remove('out'); });
@@ -378,7 +383,13 @@
     later(function () {
       const inner = isl.penguin.firstElementChild;
       bounce(inner); Sfx.play('gift'); hearts(isl.penguin, 10);
-      $('.pl-' + k, isl.root).classList.add('in');
+      // she holds it for a moment, then it joins the little pile beside her
+      const hold = document.createElement('span');
+      hold.className = 'pen-hold';
+      hold.innerHTML = k === 'coffee' ? Art.coffee() : k === 'bear' ? Art.bear() : Art.bouquet();
+      isl.penguin.appendChild(hold);
+      later(function () { hold.remove(); $('.pl-' + k, isl.root).classList.add('in'); }, 1450);
+      later(function () { Sfx.play('squeak'); }, 250);
       caption(COPY.gifts[k]);
       mood(isl.penguin, k === 'coffee' ? 'is-sparkle' : k === 'bear' ? 'is-happy is-flap' : 'is-blush is-happy', 2600);
       giftN++;
@@ -496,6 +507,28 @@
     onTap($('.lp-cat', s), function () { hearts($('.lp-cat', s), 6); Sfx.play('purr'); });
     onTap($('.lp-pen', s), function () { hearts($('.lp-pen', s), 6); Sfx.play('squeak'); });
     onTap($('.letter-card', s), function () { if (current === 'letter' && !letterDone) revealAll(); });
+    ['pointerdown', 'touchstart', 'wheel'].forEach(function (ev) { s.addEventListener(ev, function () { letterTouched = true; }, { passive: true }); });
+    s.addEventListener('scroll', letterMore, { passive: true });
+    const more = document.createElement('div');
+    more.id = 'more'; more.setAttribute('aria-hidden', 'true');
+    more.innerHTML = '<svg viewBox="0 0 48 48"><path d="M12 18 L24 30 L36 18" fill="none" stroke="#5b4a66" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    stage.appendChild(more);
+  }
+  // The letter is longer than a phone screen. While it writes itself the page follows the newest line;
+  // the moment she touches or scrolls, she is in charge and a small arrow shows there is more below.
+  let letterTouched = false;
+  function letterMore() {
+    const s = $('#s-letter'), more = $('#more');
+    if (!more) return;
+    more.classList.toggle('show', current === 'letter' && s.scrollHeight - s.scrollTop - s.clientHeight > 48);
+  }
+  function letterFollow(node, pad) {
+    const s = $('#s-letter');
+    if (letterTouched || current !== 'letter') return;
+    let top = 0, n = node;
+    while (n && n !== s) { top += n.offsetTop; n = n.offsetParent; }
+    const want = top + node.offsetHeight + (pad || 90) - s.clientHeight;
+    if (want > s.scrollTop) { try { s.scrollTo({ top: want, behavior: calm ? 'auto' : 'smooth' }); } catch (e) { s.scrollTop = want; } }
   }
   function revealAll() {
     const s = $('#s-letter');
@@ -503,11 +536,13 @@
     $('.letter-wrap', s).classList.add('done');
     letterDone = true;
     store('forShaina.seen', '1');
+    later(function () { letterFollow($('.letter-btns', s), 30); }, 900);
+    later(letterMore, 1000);
   }
   scenes.letter = {
     enter: function () {
       const s = $('#s-letter'), lines = $$('.l-line', s);
-      letterDone = false;
+      letterDone = false; letterTouched = false;
       s.scrollTop = 0;
       $('.letter-wrap', s).classList.remove('done');
       lines.forEach(function (p) { p.classList.remove('in'); });
@@ -515,20 +550,25 @@
       card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
       if (Sfx.kind() !== 'birthday') Sfx.music('birthday');
       Sfx.musicLevel(0.4);
-      lines.forEach(function (p, i) { later(function () { p.classList.add('in'); if (i === lines.length - 1) later(revealAll, 700); }, 800 + i * (calm ? 300 : 1150)); });
+      lines.forEach(function (p, i) {
+        later(function () {
+          p.classList.add('in'); letterFollow(p); letterMore();
+          if (i === lines.length - 1) later(revealAll, 900);
+        }, 800 + i * (calm ? 300 : 1150));
+      });
     },
-    exit: function () { letterDone = false; },
+    exit: function () { letterDone = false; const more = $('#more'); if (more) more.classList.remove('show'); },
   };
 
   /* ================= TEST CONTRACT ================= */
+  function tapNode() { let t = tapTarget; if (typeof t === 'function') t = t(); return (t && t.getBoundingClientRect) ? t : null; }
   window.__card = {
     scenes: function () { return SCENES.slice(); },
     scene: function () { return current; },
     goto: function (id) { go(id); },
     nextTap: function () {
-      let t = tapTarget;
-      if (typeof t === 'function') t = t();
-      if (!t || !t.getBoundingClientRect) return null;
+      const t = tapNode();
+      if (!t) return null;
       const r = t.getBoundingClientRect();
       if (!r.width || !r.height) return null;
       return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
@@ -563,13 +603,13 @@
     ['pointerdown', 'pointerup', 'click', 'keydown'].forEach(function (ev) { document.addEventListener(ev, Sfx.unlock, { passive: true }); });
     const finger = document.createElement('div');
     finger.id = 'finger'; finger.innerHTML = Art.finger(); stage.appendChild(finger);
-    let idleSince = Date.now(), lastKey = '';
+    let idleSince = Date.now(), lastNode = null;
     document.addEventListener('pointerdown', function () { idleSince = Date.now(); finger.classList.remove('show'); }, { passive: true, capture: true });
     // if she waits a moment, a little finger shows exactly what to tap
     setInterval(function () {
-      const t = Game.running() || current === 'letter' ? null : window.__card.nextTap();
-      const key = t ? current + ':' + Math.round(t.x / 8) + ':' + Math.round(t.y / 8) : '';
-      if (key !== lastKey) { lastKey = key; idleSince = Date.now(); }
+      const node = Game.running() || current === 'letter' ? null : tapNode();
+      const t = node ? window.__card.nextTap() : null;
+      if (node !== lastNode) { lastNode = node; idleSince = Date.now(); }
       if (t && Date.now() - idleSince > 2600) {
         const s = stage.getBoundingClientRect();
         finger.style.transform = 'translate3d(' + (t.x - s.left) + 'px,' + (t.y - s.top) + 'px,0)';

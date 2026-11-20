@@ -118,6 +118,7 @@
   function giftBox() {
     return svg('0 0 200 200', 'giftbox', `
       <g class="g-base"><rect x="30" y="92" width="140" height="96" rx="12" fill="#ffc9de" ${S}/>
+        <rect x="35" y="96" width="130" height="13" rx="6" fill="#f08db6" opacity=".5"/>
         <rect x="88" y="92" width="24" height="96" fill="#d5c3ff"/><path d="M88 92 v96 M112 92 v96" stroke="${INK}" stroke-width="3.500"/>
         <circle cx="54" cy="122" r="5" fill="#fff" opacity=".8"/><circle cx="146" cy="160" r="5" fill="#fff" opacity=".8"/><circle cx="60" cy="166" r="3.500" fill="#fff" opacity=".8"/><circle cx="142" cy="118" r="3.500" fill="#fff" opacity=".8"/></g>
       <g class="g-lid"><rect x="20" y="66" width="160" height="36" rx="11" fill="#ffb3d1" ${S}/>
